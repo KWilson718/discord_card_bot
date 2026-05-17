@@ -3,18 +3,16 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-# Scryfall's endpoint for looking up a card by name.
-# The "fuzzy" parameter means close-enough matches work (e.g. "lightning bolt" finds "Lightning Bolt").
-SCRYFALL_NAMED_URL = "https://api.scryfall.com/cards/named"
+# Scryfall's endpoint for looking up a random card
+SCRYFALL_NAMED_URL = "https://api.scryfall.com/cards/random"
 
-# Scryfall asks that all API clients identify themselves via User-Agent.
+# Headers provided for Scryfall API Policy
 HEADERS = {
-    "User-Agent": "DiscordCardBot/0.5",
-    "Accept": "application/json",
+    "User-Agent":"DiscordCardBot/0.5",
+    "Accept":"application/json",
 }
 
-
-class Cards(commands.Cog):
+class RandomCard(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         # Placeholder — the actual session is created in cog_load below.
@@ -32,28 +30,22 @@ class Cards(commands.Cog):
         if self.session:
             await self.session.close()
 
-    # Slash command: /card <name>
-    # The describe decorator sets the help text shown for the argument in Discord's UI.
-    @app_commands.command(name="card", description="Look up a Magic: The Gathering card by name")
-    @app_commands.describe(name="The card name to search for")
-    async def card(self, interaction: discord.Interaction, name: str):
-        # Defers the response — tells Discord "I got it, give me a moment."
-        # Required when the API call might take longer than Discord's 3-second response window.
+    # Slash Command: /random
+    @app_commands.command(name="random", description="Fetch a Random MTG Card")
+    async def card(self, interaction: discord.Interaction):
+        # Defers the response, allowing for processing time
+        # Allows for a longer than 3 second response time
         await interaction.response.defer()
 
-        # Make the GET request to Scryfall. `async with` ensures the response is
-        # properly closed after we're done reading it.
-        async with self.session.get(SCRYFALL_NAMED_URL, params={"fuzzy": name}) as resp:
-            if resp.status == 404:
-                await interaction.followup.send(f"No card found for **{name}**.")
-                return
+        # Make the GET Request to Scryfall
+        # `async with` is key to close the response once done reading
+        async with self.session.get(SCRYFALL_NAMED_URL, params={}) as resp:
             if resp.status != 200:
-                await interaction.followup.send("Scryfall returned an unexpected error. Try again later.")
+                await interaction.followup.send(f"Scryfall returned an unexpected error. Error Code {resp.status}")
                 return
-            # Parse the response body as JSON into a Python dict.
             data = await resp.json()
 
-        # Build a Discord embed (a formatted card-like message) with the card's details.
+        # Build a Discord embed (card like structure for the card)
         embed = discord.Embed(
             title=data["name"],
             url=data["scryfall_uri"],  # links to the card's page on Scryfall
@@ -77,6 +69,5 @@ class Cards(commands.Cog):
         # followup.send is used after a defer() instead of the normal response.send_message.
         await interaction.followup.send(embed=embed)
 
-
 async def setup(bot: commands.Bot):
-    await bot.add_cog(Cards(bot))
+    await bot.add_cog(RandomCard(bot))
